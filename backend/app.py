@@ -1,6 +1,6 @@
 """
 Regulatory Dashboard FINAL
-Flask backend — agentic chat with scoped Teradata tool access
+Flask backend — agentic chat with scoped Teradata tool access via MCP
 """
 
 from flask import Flask, jsonify, request
@@ -10,6 +10,8 @@ from datetime import datetime
 import os
 import re
 import json as json_lib
+import base64
+import requests as http_requests
 from functools import wraps
 from pathlib import Path
 from dotenv import load_dotenv
@@ -54,6 +56,190 @@ def handle_errors(f):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     return decorated_function
+
+
+# ============================================================
+# MCP CONFIG
+# ============================================================
+
+MCP_URL      = os.getenv('MCP_URL', 'http://10.27.109.168:8001/mcp')
+MCP_USER     = os.getenv('MCP_USER', os.getenv('TERADATA_USER', 'your-username'))
+MCP_PASSWORD = os.getenv('MCP_PASSWORD', os.getenv('TERADATA_PASSWORD', 'your-password'))
+
+MCP_ALLOWED_TOOLS = {
+    'base_readQuery',    # primary tool — query the allowed views below
+    'base_tablePreview', # preview a view's sample data when needed
+}
+
+def mcp_auth_header():
+    token = base64.b64encode(f'{MCP_USER}:{MCP_PASSWORD}'.encode()).decode()
+    return {
+        'Authorization': f'Basic {token}',
+        'Content-Type':  'application/json',
+        'Accept':        'application/json',
+    }
+
+def mcp_call(tool_name: str, arguments: dict, call_id: int = 1) -> str:
+    """Call a tool on the Teradata MCP server and return the result as a string."""
+    payload = {
+        'jsonrpc': '2.0',
+        'method':  'tools/call',
+        'params':  {'name': tool_name, 'arguments': arguments},
+        'id':      call_id,
+    }
+    try:
+        resp = http_requests.post(
+            MCP_URL,
+            headers=mcp_auth_header(),
+            json=payload,
+            timeout=60,
+        )
+        resp.raise_for_status()
+        data    = resp.json()
+        result  = data.get('result', {})
+        content = result.get('content', [])
+        if content:
+            return '\n'.join(
+                c.get('text', '') for c in content if c.get('type') == 'text'
+            )
+        if 'error' in data:
+            return f"MCP error: {data['error']}"
+        return json_lib.dumps(result, default=str)
+    except Exception as e:
+        return f'MCP call failed: {str(e)}'
+
+def mcp_tool_specs() -> list:
+    """Return Bedrock-compatible toolSpec list for allowed MCP tools."""
+    return [
+        {
+            'toolSpec': {
+                'name': 'base_readQuery',
+                'description': (
+                    'Execute a SELECT SQL query against the Teradata HCLS database. '
+                    'Only query the allowed views listed in your instructions: '
+                    'V_Approval_Predictions, V_Intervention_Queue, V_ROI_Calculator, '
+                    'V_Critical_Delays, V_GenAI_Context, V_Portfolio_Summary, '
+                    'V_Regulatory_Dashboard, V_Market_Access_Timeline, V_eCTD_Completeness. '
+                    'Use exact column names from the schema provided. Always SELECT TOP N (max 50).'
+                ),
+                'inputSchema': {'json': {'type': 'object', 'properties': {
+                    'sql': {'type': 'string', 'description': 'SELECT SQL query to execute against allowed hcls views'}
+                }, 'required': ['sql']}}
+            }
+        },
+        {
+            'toolSpec': {
+                'name': 'base_tablePreview',
+                'description': 'Preview sample rows from an allowed hcls view to understand its data.',
+                'inputSchema': {'json': {'type': 'object', 'properties': {
+                    'db_name':    {'type': 'string', 'description': 'Database name — always use hcls'},
+                    'table_name': {'type': 'string', 'description': 'View name from the allowed list'}
+                }}}
+            }
+        },
+    ]
+
+
+# ============================================================
+# HCLS SCHEMA CONTEXT
+# ============================================================
+
+HCLS_SCHEMA_CONTEXT = """
+You are a pharmaceutical regulatory affairs AI advisor with access to a Teradata HCLS
+database. You help regulatory operations teams understand submission risks, root causes
+of delays, and recommended interventions.
+
+You have TWO tools available:
+- base_readQuery: execute a SELECT SQL query against the allowed views listed below
+- base_tablePreview: preview sample rows from a view if you need to understand the data
+
+ALLOWED VIEWS ONLY (database: hcls) — do NOT query base tables or any other objects:
+
+hcls.V_Approval_Predictions — per-submission ML predictions joined with risk data
+  Columns: Actv_Id, Prod_Brnd_Nm, Ctry_Cd_Iso3 (CHAR6-TRIM!), Ctry_Name, Global_Region,
+  Actv_Sectr, Regulatory_Authority, Review_Pathway, Submission_Type, Actv_Ctry_Sts,
+  Submission_Date, Expected_Approval_Date, Actual_Approval_Date, CRL_Received_Fl,
+  CRL_Category, CRL_Received_Dt, Clock_Stop_Days, Resubmission_Cycle, Project_Orbis_Fl,
+  Parallel_Scientific_Advice_Fl, Peak_Sales_Potential, Risk_Score_Overall,
+  CMC_Readiness_Score, GMP_Site_Status, Stability_Data_Status, Tech_Transfer_Status,
+  Clinical_Data_Gap_Type, Trial_Enrollment_Pct, Dose_Optimization_Status,
+  RWE_Supplement_Fl, Parallel_Submission_Strategy, Est_Resubmission_Days, Days_Overdue,
+  Revenue_At_Risk_USD, Module3_CMC_Complete_Fl, Module5_Clinical_Complete_Fl,
+  Open_Deficiencies_Cnt, Data_Integrity_Issues_Fl, Pending_Labeling_Fl, Module3_Stability_Months
+
+hcls.V_Intervention_Queue — priority-ranked active submissions needing action
+  Columns: Actv_Id, Prod_Brnd_Nm, Ctry_Cd_Iso3, Regulatory_Authority, Actv_Sectr,
+  Peak_Sales_Potential, Risk_Score_Overall, CRL_Received_Fl, CRL_Category, GMP_Site_Status,
+  CMC_Readiness_Score, Dose_Optimization_Status, Open_Deficiencies_Cnt, Days_Overdue,
+  Priority_Score, Recommended_Action
+
+hcls.V_ROI_Calculator — revenue at risk and acceleration scenarios (aggregated by sector/region)
+  Columns: Sector, Global_Region, Regulatory_Authority, Active_Submissions,
+  Total_Peak_Sales_USD, Revenue_At_Risk_USD, Value_30Day_Accel_USD, Value_60Day_Accel_USD,
+  Value_90Day_Accel_USD, CRL_Revenue_Impact_USD, Avg_Risk_Score
+
+hcls.V_Critical_Delays — submissions critically overdue with delay root cause
+  Columns: Actv_Id, Prod_Brnd_Nm, Ctry_Cd_Iso3, Ctry_Name, Regulatory_Authority,
+  Actv_Sectr, Actv_Ctry_Sts, Review_Pathway, CRL_Received_Fl, CRL_Category,
+  Clock_Stop_Days, Resubmission_Cycle, Peak_Sales_Potential, Days_Overdue,
+  Risk_Score_Overall, GMP_Site_Status, CMC_Readiness_Score, Stability_Data_Status,
+  Clinical_Data_Gap_Type, Dose_Optimization_Status, Open_Deficiencies_Cnt,
+  Module3_CMC_Complete_Fl, Module5_Clinical_Complete_Fl, Primary_Delay_Driver
+
+hcls.V_GenAI_Context — rich pre-assembled context per submission for AI analysis
+  Columns: Actv_Id, Product_Name, Country, Region, Health_Authority, Regulatory_Authority,
+  Current_Status, Review_Pathway, Therapeutic_Area, Peak_Sales_USD, Peak_Sales_M,
+  Submission_Date, Expected_Approval_Date, Actual_Approval_Date, Days_In_Review,
+  Days_Overdue, Clock_Stop_Days, CRL_Received_Fl, CRL_Category, Predicted_Outcome,
+  Predicted_Outcome_Code, Confidence_Pct, Prob_Approved_Pct, Prob_Delayed_Pct,
+  Prob_CRL_Pct, Prob_Withdrawn_Pct, Model_Version, Scored_Date, CMC_Completeness,
+  Clinical_Completeness, Stability_Completeness, Avg_Completeness, Num_Info_Requests,
+  Num_Clock_Stops, Open_GMP_Findings, Total_GMP_Findings, Risk_Factors, Is_At_Risk,
+  Is_CRL_Watch
+
+hcls.V_Portfolio_Summary — portfolio KPIs aggregated by therapeutic sector
+  Columns: Sector, Protocols, Total_Submissions, Approved, CRLs_Received, High_Risk,
+  Orbis_Submissions, Total_Pipeline_USD, Avg_CMC_Readiness, Avg_Enrollment_Pct
+
+hcls.V_Regulatory_Dashboard — single-row portfolio-level KPI summary
+  Columns: Total_Protocols, Total_Submissions, Total_Pipeline_Value_USD, Approved_Count,
+  Active_Count, Withdrawn_Count, CRL_Count, Clock_Stop_Count, High_Risk_Submissions,
+  GMP_Critical_Count, Optimus_Remediation_Count, Avg_Days_In_Review
+
+hcls.V_Market_Access_Timeline — multi-authority submission/approval timelines per product
+  Columns: Actv_Id, Prod_Brnd_Nm, Actv_Sectr, Prod_Typ, FDA_Submission_Date,
+  FDA_Approval_Date, FDA_Pathway, FDA_CRL_Fl, EMA_Submission_Date, EMA_Approval_Date,
+  EMA_Pathway, PMDA_Submission_Date, PMDA_Approval_Date, NMPA_Submission_Date,
+  NMPA_Approval_Date
+
+hcls.V_eCTD_Completeness — eCTD module completeness per submission
+  Columns: Actv_Id, Prod_Brnd_Nm, Ctry_Cd_Iso3, Regulatory_Authority, Actv_Sectr,
+  eCTD_Version, Module1_Admin_Complete_Fl, Module2_Overview_Complete_Fl,
+  Module3_CMC_Complete_Fl, Module3_Stability_Months, Module4_Nonclinical_Complete_Fl,
+  Module5_Clinical_Complete_Fl, Open_Deficiencies_Cnt, Data_Integrity_Issues_Fl,
+  Pending_Labeling_Fl, Last_Major_Sequence_Dt, Modules_Complete, Submission_Readiness
+
+IMPORTANT SQL RULES:
+- Use SELECT TOP N — max 50 rows
+- TRIM(Ctry_Cd_Iso3) when filtering — it is CHAR(6) with trailing spaces
+- Only SELECT statements — no DDL or DML
+- Use exact column names from the lists above — do not guess
+
+DOMAIN CONTEXT:
+- CRL: FDA cannot approve as filed. Resets review clock. CMC=manufacturing, Facility=GMP.
+- CMC_Readiness_Score: 1-3 HIGH RISK, 4-6 MODERATE, 7-10 LOW RISK
+- GMP_Site_Status 'Warning Letter Active' = approval very unlikely, 12-24 months to resolve
+- OAI (Official Action Indicated) = blocks approval immediately
+- Clock_Stop_Days >90 = fundamental dossier deficiencies
+- Priority_Score >100 = CRITICAL escalation required
+- Confidence_Pct >70 = high confidence ML prediction
+- FDA standard review = 12 months. Priority = 6 months.
+- EMA centralized = 210 active review days excluding clock stops.
+
+Be specific, concise, and actionable. Use actual column values from query results.
+Suggest concrete next steps with owners and timeframes.
+Format responses in plain text without markdown headers.
+"""
 
 
 # ============================================================
@@ -333,71 +519,10 @@ def get_model_metadata():
 
 
 # ============================================================
-# AGENTIC CHAT — Bedrock + scoped Teradata tool access
+# AGENTIC CHAT — Bedrock + Teradata MCP server (views only)
 # ============================================================
 
-ALLOWED_OBJECTS = {
-    'hcls.activity_country',
-    'hcls.product_registration',
-    'hcls.submission_risk_features',
-    'hcls.v_intervention_queue',
-    'hcls.v_roi_calculator',
-}
-
-HCLS_SCHEMA_CONTEXT = """
-You have access to the following Teradata HCLS database objects via the query_teradata tool.
-Only query these objects — no others are permitted.
-
-IMPORTANT SQL RULES:
-- Always use TRIM() when comparing Ctry_Cd_Iso3 — it is CHAR(6) with trailing spaces
-- All three base tables join on: Actv_Id AND TRIM(Ctry_Cd_Iso3) = TRIM(Ctry_Cd_Iso3)
-- Use SELECT TOP N to limit large result sets (max 50 rows)
-- Only SELECT statements are permitted — no DDL or DML
-
-BASE TABLES:
-hcls.Activity_Country — Core submissions: Actv_Id, Ctry_Cd_Iso3, Ctry_Name, Global_Region,
-  Actv_Ctry_Sts (TRIM!), Helth_Auth_Init_Sbmn_Actl, Helth_Auth_Init_Appr_Exptd,
-  Helth_Auth_Init_Appr_Actl, Regulatory_Authority, Review_Pathway, CRL_Received_Fl,
-  CRL_Category, Clock_Stop_Days, Resubmission_Cycle, Project_Orbis_Fl
-
-hcls.Product_Registration — Product info: Actv_Id, Ctry_Cd_Iso3, Prod_Brnd_Nm,
-  Prod_Typ, Actv_Sectr (therapeutic area), Peak_Sales_Potential (USD), Blgc_Prod_In
-
-hcls.Submission_Risk_Features — Risk data: Actv_Id, Ctry_Cd_Iso3, Risk_Score_Overall (0-10),
-  CMC_Readiness_Score (0-10), GMP_Site_Status, Stability_Data_Status,
-  Dose_Optimization_Status, Clinical_Data_Gap_Type, Est_Resubmission_Days
-
-VIEWS:
-hcls.V_Intervention_Queue — Priority-ranked active submissions:
-  Actv_Id, Ctry_Cd_Iso3, Prod_Brnd_Nm, Actv_Sectr, Regulatory_Authority,
-  Risk_Score_Overall, Priority_Score, Days_Overdue, Recommended_Action,
-  CRL_Received_Fl, GMP_Site_Status, CMC_Readiness_Score, Open_Deficiencies_Cnt
-
-hcls.V_ROI_Calculator — Revenue acceleration:
-  Actv_Id, Ctry_Cd_Iso3, Global_Region, Sector, Revenue_At_Risk_USD,
-  Value_30Day_Accel_USD, Value_60Day_Accel_USD, Value_90Day_Accel_USD
-
-JOIN KEY: Actv_Id AND TRIM(Ctry_Cd_Iso3) = TRIM(Ctry_Cd_Iso3) for all tables
-"""
-
-
-def validate_sql(sql: str):
-    """Returns (is_valid, reason). Only allows SELECT on ALLOWED_OBJECTS."""
-    sql_upper = sql.upper().strip()
-    blocked = ['INSERT','UPDATE','DELETE','DROP','CREATE','ALTER','TRUNCATE','MERGE','EXEC','EXECUTE','GRANT','REVOKE','CALL']
-    for kw in blocked:
-        if re.search(rf'\b{kw}\b', sql_upper):
-            return False, f'Blocked keyword: {kw}'
-    if not sql_upper.lstrip().startswith('SELECT'):
-        return False, 'Only SELECT statements permitted'
-    for obj in re.findall(r'hcls\.\w+', sql, re.IGNORECASE):
-        if obj.lower() not in ALLOWED_OBJECTS:
-            return False, f'Object not allowed: {obj}'
-    return True, 'OK'
-
-
 def extract_text(blocks):
-    """Extract text strings from Bedrock content blocks (handles both tagged union and typed formats)."""
     parts = []
     for b in blocks:
         if isinstance(b, dict):
@@ -409,53 +534,9 @@ def extract_text(blocks):
     return parts
 
 
-def to_bedrock_block(b):
-    """
-    Convert a Bedrock response content block to the tagged union request format.
-
-    Bedrock response can return blocks as:
-      {'type': 'text', 'text': '...'}              → text
-      {'text': '...'}                              → text (no type key)
-      {'toolUse': {'toolUseId':..,'name':..}}      → tool use (tagged union already)
-      {'type': 'tool_use', 'id':..,'name':..}      → tool use (older format)
-
-    Bedrock request requires tagged union:
-      {'text': '...'}
-      {'toolUse': {'toolUseId': ..., 'name': ..., 'input': ...}}
-    """
-    if not isinstance(b, dict):
-        return None
-
-    # Already in tagged union toolUse format
-    if 'toolUse' in b:
-        return b
-
-    # Older type-based tool_use format → convert to tagged union
-    if b.get('type') == 'tool_use':
-        return {
-            'toolUse': {
-                'toolUseId': b.get('id', ''),
-                'name':      b.get('name', ''),
-                'input':     b.get('input', {}),
-            }
-        }
-
-    # Text block (with or without 'type' key)
-    t = b.get('text', '')
-    if t:
-        return {'text': t}
-
-    return None
-
-
 @app.route('/api/chat', methods=['POST'])
 @handle_errors
 def chat():
-    """
-    Agentic chat — Bedrock converse with query_teradata tool.
-    Runs an agentic loop: call Bedrock → if tool_use, validate+execute SQL,
-    return tool_result, repeat → return final text when end_turn.
-    """
     import boto3
     from botocore.exceptions import ClientError
 
@@ -470,36 +551,11 @@ def chat():
         'bedrock-runtime',
         region_name=aws_region,
         aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-        aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
+        aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
     )
-
-    tools = [{
-        'toolSpec': {
-            'name': 'query_teradata',
-            'description': (
-                'Execute a SELECT query against the Teradata HCLS database. '
-                'Use to compare submissions, calculate stats, or answer questions '
-                'beyond the initial context. Only allowed objects: '
-                'hcls.Activity_Country, hcls.Product_Registration, '
-                'hcls.Submission_Risk_Features, hcls.V_Intervention_Queue, '
-                'hcls.V_ROI_Calculator. Always TRIM() Ctry_Cd_Iso3.'
-            ),
-            'inputSchema': {
-                'json': {
-                    'type': 'object',
-                    'properties': {
-                        'sql':       {'type': 'string', 'description': 'SELECT SQL to execute'},
-                        'rationale': {'type': 'string', 'description': 'Why this query is needed'}
-                    },
-                    'required': ['sql', 'rationale']
-                }
-            }
-        }
-    }]
 
     full_system = f"{system_prompt}\n\n{HCLS_SCHEMA_CONTEXT}"
 
-    # Build conversation history — strict user/assistant alternation, no empty content
     raw = []
     for m in messages:
         role    = m.get('role', '')
@@ -508,7 +564,6 @@ def chat():
             continue
         raw.append({'role': role, 'content': content})
 
-    # Merge consecutive same-role messages
     merged = []
     for m in raw:
         if merged and merged[-1]['role'] == m['role']:
@@ -526,12 +581,11 @@ def chat():
         for m in merged
     ]
 
-    # Agentic loop — follows AWS documentation pattern exactly:
-    # https://docs.aws.amazon.com/bedrock/latest/userguide/tool-use-inference-call.html
-    # Key: append response['output']['message'] DIRECTLY — it is already in the correct format
+    tools = mcp_tool_specs()
+
     try:
-        for iteration in range(1, 6):
-            response     = client.converse(
+        for iteration in range(1, 11):
+            response       = client.converse(
                 modelId=model_id,
                 system=[{'text': full_system}],
                 messages=bedrock_messages,
@@ -539,17 +593,13 @@ def chat():
                 inferenceConfig={'maxTokens': 2000, 'temperature': 0.2}
             )
             stop_reason    = response.get('stopReason', '')
-            output_message = response['output']['message']   # already correct format
+            output_message = response['output']['message']
             content_blocks = output_message.get('content', [])
-
-            # Append the raw response message directly — per AWS docs
             bedrock_messages.append(output_message)
 
-            # Done — return text response
             if stop_reason == 'end_turn':
                 return jsonify({'response': '\n'.join(extract_text(content_blocks)) or 'No response received.'})
 
-            # Tool call requested
             if stop_reason == 'tool_use':
                 tool_results = []
 
@@ -562,43 +612,32 @@ def chat():
                     tool_name   = tu.get('name', '')
                     tool_input  = tu.get('input', {})
 
-                    if tool_name != 'query_teradata':
-                        tool_results.append({'toolResult': {'toolUseId': tool_use_id, 'content': [{'text': f'Unknown tool: {tool_name}'}]}})
-                        continue
-
-                    sql       = tool_input.get('sql', '').strip()
-                    rationale = tool_input.get('rationale', '')
-                    print(f'[TOOL #{iteration}] {rationale}')
-                    print(f'[TOOL #{iteration}] SQL: {sql}')
-
-                    is_valid, reason = validate_sql(sql)
-                    if not is_valid:
-                        print(f'[TOOL #{iteration}] BLOCKED: {reason}')
-                        result_text = f'Query blocked: {reason}. Only SELECT on allowed HCLS objects permitted.'
+                    if tool_name not in MCP_ALLOWED_TOOLS:
+                        print(f'[MCP #{iteration}] BLOCKED tool: {tool_name}', flush=True)
+                        result_text = f'Tool {tool_name} is not permitted. Use only base_readQuery or base_tablePreview.'
                     else:
-                        try:
-                            rows = execute_query(sql)
-                            result_text = f'Query returned {len(rows)} row(s):\n{json_lib.dumps(rows[:50], default=str)}' if rows else 'Query returned no rows.'
-                            print(f'[TOOL #{iteration}] Returned {len(rows)} rows')
-                        except Exception as qe:
-                            result_text = f'Query execution error: {str(qe)}'
-                            print(f'[TOOL #{iteration}] ERROR: {qe}')
+                        print(f'[MCP #{iteration}] {tool_name} {json_lib.dumps(tool_input)}', flush=True)
+                        result_text = mcp_call(tool_name, tool_input, call_id=iteration)
+                        print(f'[MCP #{iteration}] result length: {len(result_text)} chars', flush=True)
 
-                    tool_results.append({'toolResult': {'toolUseId': tool_use_id, 'content': [{'text': result_text}]}})
+                    tool_results.append({
+                        'toolResult': {
+                            'toolUseId': tool_use_id,
+                            'content':   [{'text': result_text}]
+                        }
+                    })
 
-                # Append tool results as user message — per AWS docs
                 bedrock_messages.append({'role': 'user', 'content': tool_results})
                 continue
 
-            # Unexpected stop reason
             return jsonify({'response': '\n'.join(extract_text(content_blocks)) or f'Stopped: {stop_reason}'})
 
         return jsonify({'response': 'Analysis required too many steps. Please try a more specific question.'})
 
     except ClientError as e:
         err = e.response['Error']
-        print(f"Bedrock error: {err['Code']} — {err['Message']}")
-        return jsonify({'error': f"Bedrock error: {err['Code']}", 'detail': err['Message']}), 502
+        print(f'[BEDROCK ERROR] {err["Code"]} — {err["Message"]}', flush=True)
+        return jsonify({'error': f'Bedrock error: {err["Code"]}', 'detail': err['Message']}), 502
 
 
 # ============================================================

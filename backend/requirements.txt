@@ -4,3 +4,4 @@ teradatasql==17.20.0.28
 python-dotenv==1.0.0
 boto3>=1.34.0
 gunicorn==21.2.0
+requests>=2.31.0
