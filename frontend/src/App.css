@@ -14,6 +14,20 @@
   --pending: #F59E0B;
   --critical: #EF4444;
   --on-track: #22C55E;
+  --surface-hover: #1a1a2e;
+  --input-bg: #0D1117;
+  --shadow: rgba(0,0,0,0.4);
+}
+
+[data-theme="light"] {
+  --bg: #F1F5F9;
+  --surface: #FFFFFF;
+  --border: #CBD5E1;
+  --text: #0F172A;
+  --muted: #64748B;
+  --surface-hover: #EFF6FF;
+  --input-bg: #F8FAFC;
+  --shadow: rgba(0,0,0,0.1);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -40,7 +54,7 @@ body {
   position: sticky;
   top: 0;
   z-index: 100;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  box-shadow: 0 2px 8px var(--shadow);
 }
 
 .header-left { display: flex; align-items: center; gap: 12px; }
@@ -96,13 +110,28 @@ body {
 
 .refresh-btn:hover { opacity: 0.9; }
 
+/* THEME TOGGLE */
+.theme-toggle {
+  background: rgba(255,255,255,0.1);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.2);
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transition: background 0.2s;
+}
+
+.theme-toggle:hover { background: rgba(255,255,255,0.2); }
+
 /* FILTER BAR */
 .filter-bar {
   display: flex;
   align-items: center;
   gap: 20px;
   padding: 14px 32px;
-  background: #161B22;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 
@@ -121,7 +150,7 @@ body {
   padding: 6px 10px;
   border: 1px solid var(--border);
   border-radius: 4px;
-  background: #0D1117;
+  background: var(--input-bg);
   color: var(--text);
   font-family: 'Inter', sans-serif;
   font-size: 12px;
@@ -152,14 +181,14 @@ body {
 }
 
 .kpi {
-  background: #111827;
+  background: var(--surface);
   padding: 20px 24px;
   position: relative;
   overflow: hidden;
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.kpi:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+.kpi:hover { transform: translateY(-2px); box-shadow: 0 4px 8px var(--shadow); }
 
 .kpi::after {
   content: '';
@@ -303,7 +332,7 @@ body {
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.8);
+  background: rgba(0,0,0,0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -314,13 +343,13 @@ body {
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .modal-content {
-  background: #111827;
+  background: var(--surface);
   border-radius: 8px;
   max-width: 900px;
   width: 90vw;
   max-height: 85vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  box-shadow: 0 20px 60px var(--shadow);
   animation: slideUp 0.3s;
   border: 1px solid var(--border);
 }
@@ -429,7 +458,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #0D1117;
+  background: var(--surface);
 }
 
 .footer-left, .footer-right { font-size: 10px; color: var(--muted); }
@@ -460,6 +489,50 @@ body {
 .empty-state { text-align: center; padding: 40px; color: var(--muted); }
 
 .text-muted { color: var(--muted); font-size: 12px; margin-top: 8px; }
+
+/* LIGHT MODE COMPONENT OVERRIDES */
+/* KPI ML bar */
+[data-theme="light"] .kpi-ml-bar-bg { background: #E2E8F0 !important; }
+[data-theme="light"] .kpi-ml-legend span { color: #334155 !important; }
+[data-theme="light"] .kpi-ml-legend strong { color: #0F172A !important; }
+
+/* Regional breakdown cards */
+[data-theme="light"] .region-card { background: #FFFFFF !important; border-color: #CBD5E1 !important; }
+[data-theme="light"] .region-card-selected { background: #EFF6FF !important; }
+[data-theme="light"] .region-bar-track { background: #E2E8F0 !important; }
+[data-theme="light"] .region-stat-value { color: #0F172A !important; }
+[data-theme="light"] .region-stat-label { color: #64748B !important; }
+[data-theme="light"] .region-divider { border-color: #E2E8F0 !important; }
+
+/* Protocol cards */
+[data-theme="light"] .protocol-card { background: #FFFFFF !important; }
+[data-theme="light"] .protocol-card-gauge-bg { background: #E2E8F0 !important; }
+[data-theme="light"] .protocol-card-gauge-inner { background: #FFFFFF !important; }
+[data-theme="light"] .protocol-card-footer { border-color: #E2E8F0 !important; }
+[data-theme="light"] .protocol-card-prob-na { color: #CBD5E1 !important; }
+
+/* Model card */
+[data-theme="light"] .model-card { background: #FFFFFF !important; border-color: #CBD5E1 !important; }
+[data-theme="light"] .model-feature-bar-bg { background: #E2E8F0 !important; }
+[data-theme="light"] .model-notes { border-color: #E2E8F0 !important; }
+
+/* Intervention chat */
+[data-theme="light"] .chat-panel { background: #FFFFFF !important; }
+[data-theme="light"] .chat-queue { background: #F8FAFC !important; border-color: #CBD5E1 !important; }
+[data-theme="light"] .chat-queue-header { background: #F8FAFC !important; border-color: #E2E8F0 !important; }
+[data-theme="light"] .chat-item { border-color: #E2E8F0 !important; }
+[data-theme="light"] .chat-item:hover { background: #F1F5F9 !important; }
+[data-theme="light"] .chat-item-active { background: #EFF6FF !important; }
+[data-theme="light"] .chat-messages { background: #FFFFFF !important; }
+[data-theme="light"] .chat-msg-assistant { background: #F1F5F9 !important; border-color: #CBD5E1 !important; color: #0F172A !important; }
+[data-theme="light"] .chat-msg-system { background: #F8FAFC !important; color: #64748B !important; }
+[data-theme="light"] .chat-input { background: #F8FAFC !important; border-color: #CBD5E1 !important; color: #0F172A !important; }
+[data-theme="light"] .chat-header { background: #F8FAFC !important; border-color: #E2E8F0 !important; }
+[data-theme="light"] .chat-prompts { background: #F8FAFC !important; border-color: #E2E8F0 !important; }
+[data-theme="light"] .chat-prompt-btn { border-color: #CBD5E1 !important; color: #475569 !important; }
+[data-theme="light"] .chat-input-row { background: #F8FAFC !important; border-color: #E2E8F0 !important; }
+[data-theme="light"] .chat-fullscreen { background: #FFFFFF !important; border-color: #CBD5E1 !important; }
+[data-theme="light"] .chat-disclaimer { background: #F8FAFC !important; border-color: #E2E8F0 !important; }
 
 @media (max-width: 1024px) {
   .kpi-strip { grid-template-columns: repeat(3, 1fr); }

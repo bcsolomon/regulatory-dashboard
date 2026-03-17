@@ -17,48 +17,35 @@ const outcomeRiskClass = (outcome, confidence) => {
   return 'watch';
 };
 
-// ── Disclaimer bar shown at the bottom of every chat ──
-const AIDisclaimer = () => (
+const AIDisclaimer = ({ t }) => (
   <div style={{
     padding: '6px 16px',
-    background: '#0a0f17',
-    borderTop: '1px solid #1F2937',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    flexShrink: 0,
+    background: t('#0a0f17', '#F8FAFC'),
+    borderTop: `1px solid ${t('#1F2937', '#E2E8F0')}`,
+    display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
   }}>
     <span style={{ fontSize: 9, color: '#FF5F02', flexShrink: 0 }}>⚠</span>
-    <span style={{ fontSize: 9, color: '#4B5563', lineHeight: 1.4 }}>
+    <span style={{ fontSize: 9, color: t('#4B5563', '#94A3B8'), lineHeight: 1.4 }}>
       AI-generated responses are based on available submission data and may contain errors or omissions.
       Always verify recommendations with your regulatory affairs team before taking action.
     </span>
   </div>
 );
 
-// ── Reusable chat panel content — used in both inline and fullscreen ──
 const ChatPanel = ({
-  selected,
-  chatContext,
-  messages,
-  isLoading,
-  contextLoading,
-  inputValue,
-  setInputValue,
-  sendMessage,
-  messagesRef,
-  chatEndRef,
-  isFullscreen,
-  onToggleFullscreen,
+  selected, chatContext, messages, isLoading, contextLoading,
+  inputValue, setInputValue, sendMessage, messagesRef, chatEndRef,
+  isFullscreen, onToggleFullscreen, t,
 }) => {
   if (!selected) {
     return (
       <div style={{
         flex: 1, display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center', gap: 12,
+        background: t('#0D1117', '#FFFFFF'),
       }}>
         <div style={{ fontSize: 32 }}>💬</div>
-        <div style={{ fontSize: 13, color: '#6B7280', textAlign: 'center', maxWidth: 280 }}>
+        <div style={{ fontSize: 13, color: t('#6B7280', '#64748B'), textAlign: 'center', maxWidth: 280 }}>
           Select a submission from the queue to start an AI-assisted intervention analysis
         </div>
       </div>
@@ -72,84 +59,71 @@ const ChatPanel = ({
       {/* Header */}
       <div style={{
         padding: '12px 16px',
-        borderBottom: '1px solid #1F2937',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        borderBottom: `1px solid ${t('#1F2937', '#E2E8F0')}`,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         flexShrink: 0,
-        background: '#0D1117',
+        background: t('#0D1117', '#F8FAFC'),
       }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#F9FAFB' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: t('#F9FAFB', '#0F172A') }}>
             {selected.Product} — {selected.Protocol_ID}
           </div>
-          <div style={{ fontSize: 10, color: '#6B7280' }}>
+          <div style={{ fontSize: 10, color: t('#6B7280', '#64748B') }}>
             {selected.Country_Code} · {selected.Regulatory_Authority}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{
             fontSize: 9, color: oColor,
-            background: `${oColor}22`,
-            border: `1px solid ${oColor}44`,
+            background: `${oColor}22`, border: `1px solid ${oColor}44`,
             borderRadius: 4, padding: '3px 8px', fontWeight: 700,
           }}>
             {outcomeLabel(selected.Predicted_Outcome)} · {Math.round((parseFloat(selected.Confidence) || 0) * 100)}% conf
           </div>
-          {/* Fullscreen toggle button */}
           <button
             onClick={onToggleFullscreen}
             title={isFullscreen ? 'Exit fullscreen' : 'Open fullscreen'}
             style={{
               background: 'transparent',
-              border: '1px solid #374151',
-              color: '#9CA3AF',
-              borderRadius: 4,
-              width: 28, height: 28,
-              cursor: 'pointer',
+              border: `1px solid ${t('#374151', '#CBD5E1')}`,
+              color: t('#9CA3AF', '#64748B'),
+              borderRadius: 4, width: 28, height: 28, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 13,
-              transition: 'all 0.15s',
-              flexShrink: 0,
+              fontSize: 13, transition: 'all 0.15s', flexShrink: 0,
             }}
             onMouseEnter={e => { e.target.style.borderColor = '#FF5F02'; e.target.style.color = '#FF5F02'; }}
-            onMouseLeave={e => { e.target.style.borderColor = '#374151'; e.target.style.color = '#9CA3AF'; }}
+            onMouseLeave={e => { e.target.style.borderColor = t('#374151', '#CBD5E1'); e.target.style.color = t('#9CA3AF', '#64748B'); }}
           >
             {isFullscreen ? '⊠' : '⛶'}
           </button>
         </div>
       </div>
 
-      {/* ── Scrollable message area ── */}
+      {/* Message area */}
       <div
         ref={messagesRef}
         style={{
-          flex: 1,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          padding: '12px 16px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10,
-          minHeight: 0,
+          flex: 1, overflowY: 'auto', overflowX: 'hidden',
+          padding: '12px 16px', display: 'flex', flexDirection: 'column',
+          gap: 10, minHeight: 0,
+          background: t('#0D1117', '#FFFFFF'),
           scrollbarWidth: 'thin',
-          scrollbarColor: '#374151 #0D1117',
+          scrollbarColor: t('#374151 #0D1117', '#CBD5E1 #FFFFFF'),
         }}
       >
         {contextLoading ? (
-          <div style={{ color: '#6B7280', fontSize: 12, textAlign: 'center', marginTop: 20 }}>
+          <div style={{ color: t('#6B7280', '#64748B'), fontSize: 12, textAlign: 'center', marginTop: 20 }}>
             Loading submission context...
           </div>
         ) : (
           messages.map((msg, i) => (
             <div key={i} style={{
-              display: 'flex',
-              flexDirection: 'column',
+              display: 'flex', flexDirection: 'column',
               alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
             }}>
               {msg.role !== 'system' && (
                 <div style={{
-                  fontSize: 9, color: '#4B5563', marginBottom: 3,
+                  fontSize: 9, color: t('#4B5563', '#94A3B8'), marginBottom: 3,
                   paddingLeft: msg.role === 'user' ? 0 : 4,
                   paddingRight: msg.role === 'user' ? 4 : 0,
                 }}>
@@ -157,20 +131,18 @@ const ChatPanel = ({
                 </div>
               )}
               <div style={{
-                maxWidth: '85%',
-                padding: '10px 14px',
+                maxWidth: '85%', padding: '10px 14px',
                 borderRadius: msg.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
                 background: msg.role === 'user'
                   ? 'rgba(255,95,2,0.15)'
                   : msg.role === 'system'
-                  ? '#161B22'
-                  : '#1F2937',
+                  ? t('#161B22', '#F1F5F9')
+                  : t('#1F2937', '#F1F5F9'),
                 border: msg.role === 'user'
                   ? '1px solid rgba(255,95,2,0.3)'
-                  : '1px solid #374151',
-                fontSize: 12,
-                lineHeight: 1.6,
-                color: msg.role === 'system' ? '#6B7280' : '#F9FAFB',
+                  : `1px solid ${t('#374151', '#CBD5E1')}`,
+                fontSize: 12, lineHeight: 1.6,
+                color: msg.role === 'system' ? t('#6B7280', '#64748B') : t('#F9FAFB', '#0F172A'),
                 fontStyle: msg.role === 'system' ? 'italic' : 'normal',
                 whiteSpace: 'pre-wrap',
               }}>
@@ -181,12 +153,14 @@ const ChatPanel = ({
         )}
         {isLoading && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-            <div style={{ fontSize: 9, color: '#4B5563', marginBottom: 3, paddingLeft: 4 }}>🤖 AI Assistant</div>
+            <div style={{ fontSize: 9, color: t('#4B5563', '#94A3B8'), marginBottom: 3, paddingLeft: 4 }}>🤖 AI Assistant</div>
             <div style={{
-              padding: '10px 14px', background: '#1F2937', border: '1px solid #374151',
-              borderRadius: '12px 12px 12px 4px', fontSize: 12, color: '#6B7280',
+              padding: '10px 14px',
+              background: t('#1F2937', '#F1F5F9'),
+              border: `1px solid ${t('#374151', '#CBD5E1')}`,
+              borderRadius: '12px 12px 12px 4px', fontSize: 12, color: t('#6B7280', '#64748B'),
             }}>
-              <span style={{ animation: 'pulse 1.5s ease-in-out infinite' }}>Analyzing...</span>
+              <span>Analyzing...</span>
             </div>
           </div>
         )}
@@ -196,13 +170,11 @@ const ChatPanel = ({
       {/* Suggested prompts */}
       {messages.length <= 1 && !isLoading && (
         <div style={{
-          padding: '8px 16px',
-          display: 'flex', flexWrap: 'wrap', gap: 6,
-          flexShrink: 0,
-          borderTop: '1px solid #1F2937',
-          background: '#0D1117',
+          padding: '8px 16px', display: 'flex', flexWrap: 'wrap', gap: 6,
+          flexShrink: 0, borderTop: `1px solid ${t('#1F2937', '#E2E8F0')}`,
+          background: t('#0D1117', '#F8FAFC'),
         }}>
-          <div style={{ width: '100%', fontSize: 9, color: '#4B5563', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          <div style={{ width: '100%', fontSize: 9, color: t('#4B5563', '#94A3B8'), marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             Suggested prompts
           </div>
           {SUGGESTED_PROMPTS.map((prompt, i) => (
@@ -210,12 +182,14 @@ const ChatPanel = ({
               key={i}
               onClick={() => sendMessage(prompt)}
               style={{
-                background: 'transparent', border: '1px solid #374151', color: '#9CA3AF',
+                background: 'transparent',
+                border: `1px solid ${t('#374151', '#CBD5E1')}`,
+                color: t('#9CA3AF', '#64748B'),
                 borderRadius: 20, padding: '5px 12px', fontSize: 11, cursor: 'pointer',
                 transition: 'all 0.15s', fontFamily: 'Inter, sans-serif',
               }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = '#FF5F02'; e.currentTarget.style.color = '#FF5F02'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#374151'; e.currentTarget.style.color = '#9CA3AF'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = t('#374151', '#CBD5E1'); e.currentTarget.style.color = t('#9CA3AF', '#64748B'); }}
             >
               {prompt}
             </button>
@@ -225,11 +199,9 @@ const ChatPanel = ({
 
       {/* Input row */}
       <div style={{
-        padding: '12px 16px',
-        borderTop: '1px solid #1F2937',
-        display: 'flex', gap: 8,
-        flexShrink: 0,
-        background: '#0D1117',
+        padding: '12px 16px', borderTop: `1px solid ${t('#1F2937', '#E2E8F0')}`,
+        display: 'flex', gap: 8, flexShrink: 0,
+        background: t('#0D1117', '#F8FAFC'),
       }}>
         <input
           type="text"
@@ -239,16 +211,19 @@ const ChatPanel = ({
           placeholder="Ask about this submission..."
           disabled={isLoading || contextLoading}
           style={{
-            flex: 1, background: '#161B22', border: '1px solid #374151',
-            borderRadius: 6, color: '#F9FAFB', padding: '9px 14px',
-            fontSize: 13, outline: 'none', fontFamily: 'Inter, sans-serif',
+            flex: 1,
+            background: t('#161B22', '#FFFFFF'),
+            border: `1px solid ${t('#374151', '#CBD5E1')}`,
+            borderRadius: 6, color: t('#F9FAFB', '#0F172A'),
+            padding: '9px 14px', fontSize: 13, outline: 'none',
+            fontFamily: 'Inter, sans-serif',
           }}
         />
         <button
           onClick={() => sendMessage(inputValue)}
           disabled={isLoading || !inputValue.trim()}
           style={{
-            background: isLoading || !inputValue.trim() ? '#374151' : '#FF5F02',
+            background: isLoading || !inputValue.trim() ? t('#374151', '#CBD5E1') : '#FF5F02',
             color: 'white', border: 'none', borderRadius: 6, padding: '0 16px',
             cursor: isLoading || !inputValue.trim() ? 'default' : 'pointer',
             fontSize: 13, fontWeight: 600, transition: 'background 0.15s',
@@ -259,14 +234,14 @@ const ChatPanel = ({
         </button>
       </div>
 
-      {/* AI Disclaimer */}
-      <AIDisclaimer />
+      <AIDisclaimer t={t} />
     </>
   );
 };
 
-// ── Main component ──
-const InterventionChat = ({ interventions, selectedCard }) => {
+const InterventionChat = ({ interventions, selectedCard, theme = 'dark' }) => {
+  const t = (dark, light) => theme === 'dark' ? dark : light;
+
   const [selected, setSelected]             = useState(null);
   const [chatContext, setChatContext]        = useState(null);
   const [messages, setMessages]             = useState([]);
@@ -287,7 +262,6 @@ const InterventionChat = ({ interventions, selectedCard }) => {
     }
   }, [messages, isLoading]);
 
-  // Lock body scroll when fullscreen is open
   useEffect(() => {
     document.body.style.overflow = isFullscreen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
@@ -319,8 +293,7 @@ const InterventionChat = ({ interventions, selectedCard }) => {
     setContextLoading(true);
     try {
       const ctx = await ApiService.getInterventionChatContext(
-        normalized.Protocol_ID,
-        normalized.Country_Code
+        normalized.Protocol_ID, normalized.Country_Code
       );
       setChatContext(ctx);
       const confPct = Math.round((parseFloat(normalized.Confidence) || 0) * 100);
@@ -375,10 +348,7 @@ Format your response in plain text without markdown headers. Keep answers to 3-5
           messages: [
             ...messages
               .filter(m => m.role !== 'system' && m.text && m.text.trim())
-              .map(m => ({
-                role:    m.role === 'assistant' ? 'assistant' : 'user',
-                content: m.text.trim(),
-              })),
+              .map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text.trim() })),
             { role: 'user', content: `${contextPayload}\n\nQuestion: ${text}` },
           ],
         }),
@@ -406,25 +376,27 @@ Format your response in plain text without markdown headers. Keep answers to 3-5
 
   const sharedChatProps = {
     selected, chatContext, messages, isLoading, contextLoading,
-    inputValue, setInputValue, sendMessage,
-    messagesRef, chatEndRef,
-    isFullscreen, onToggleFullscreen: () => setIsFullscreen(f => !f),
+    inputValue, setInputValue, sendMessage, messagesRef, chatEndRef,
+    isFullscreen, onToggleFullscreen: () => setIsFullscreen(f => !f), t,
   };
 
   return (
     <>
-      {/* ── INLINE PANEL ── */}
+      {/* INLINE PANEL */}
       <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', height: 600, overflow: 'hidden' }}>
 
         {/* LEFT: Queue */}
-        <div style={{ borderRight: '1px solid #1F2937', overflowY: 'auto', background: '#0D1117', display: 'flex', flexDirection: 'column' }}>
+        <div style={{
+          borderRight: `1px solid ${t('#1F2937', '#E2E8F0')}`,
+          overflowY: 'auto', background: t('#0D1117', '#F8FAFC'),
+          display: 'flex', flexDirection: 'column',
+        }}>
           <div style={{
-            padding: '12px 16px', borderBottom: '1px solid #1F2937',
+            padding: '12px 16px', borderBottom: `1px solid ${t('#1F2937', '#E2E8F0')}`,
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            position: 'sticky', top: 0, background: '#0D1117', zIndex: 1,
-            flexShrink: 0,
+            position: 'sticky', top: 0, background: t('#0D1117', '#F8FAFC'), zIndex: 1, flexShrink: 0,
           }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: t('#9CA3AF', '#64748B'), textTransform: 'uppercase', letterSpacing: '0.1em' }}>
               Queue ({interventions.length})
             </span>
             {urgentCount > 0 && (
@@ -443,6 +415,7 @@ Format your response in plain text without markdown headers. Keep answers to 3-5
             const urgency  = outcomeRiskClass(outcome, item.Confidence);
             const isActive = selected?.Protocol_ID === item.Protocol_ID && selected?.Country_Code === item.Country_Code;
             const confPct  = Math.round((parseFloat(item.Confidence) || 0) * 100);
+            const activeBg = t('#161B22', '#EFF6FF');
 
             return (
               <div
@@ -450,34 +423,28 @@ Format your response in plain text without markdown headers. Keep answers to 3-5
                 onClick={() => handleSelectIntervention(item)}
                 style={{
                   padding: '12px 16px',
-                  borderBottom: '1px solid #161B22',
+                  borderBottom: `1px solid ${t('#161B22', '#E2E8F0')}`,
                   borderLeft: `3px solid ${urgency === 'urgent' ? '#EF4444' : urgency === 'high' ? '#F59E0B' : '#3B82F6'}`,
-                  background: isActive ? '#161B22' : 'transparent',
-                  cursor: 'pointer',
-                  transition: 'background 0.15s',
-                  flexShrink: 0,
+                  background: isActive ? activeBg : 'transparent',
+                  cursor: 'pointer', transition: 'background 0.15s', flexShrink: 0,
                 }}
-                onMouseEnter={e => !isActive && (e.currentTarget.style.background = '#0F1923')}
+                onMouseEnter={e => !isActive && (e.currentTarget.style.background = t('#0F1923', '#F1F5F9'))}
                 onMouseLeave={e => !isActive && (e.currentTarget.style.background = 'transparent')}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ fontSize: 10, color: '#FF5F02', fontWeight: 600 }}>{item.Protocol_ID}</span>
-                  <span style={{
-                    fontSize: 9, color,
-                    background: `${color}22`, border: `1px solid ${color}44`,
-                    borderRadius: 3, padding: '1px 5px', fontWeight: 700,
-                  }}>
+                  <span style={{ fontSize: 9, color, background: `${color}22`, border: `1px solid ${color}44`, borderRadius: 3, padding: '1px 5px', fontWeight: 700 }}>
                     {outcomeLabel(outcome)}
                   </span>
                 </div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#F9FAFB', marginBottom: 2 }}>{item.Product}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: t('#F9FAFB', '#0F172A'), marginBottom: 2 }}>{item.Product}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <div style={{ flex: 1, height: 3, background: '#1F2937', borderRadius: 2 }}>
+                  <div style={{ flex: 1, height: 3, background: t('#1F2937', '#E2E8F0'), borderRadius: 2 }}>
                     <div style={{ height: '100%', width: `${confPct}%`, background: color, borderRadius: 2 }} />
                   </div>
-                  <span style={{ fontSize: 9, color: '#6B7280', whiteSpace: 'nowrap' }}>{confPct}% conf</span>
+                  <span style={{ fontSize: 9, color: t('#6B7280', '#64748B'), whiteSpace: 'nowrap' }}>{confPct}% conf</span>
                 </div>
-                <div style={{ fontSize: 10, color: '#6B7280' }}>{item.Country_Code} · {item.Regulatory_Authority}</div>
+                <div style={{ fontSize: 10, color: t('#6B7280', '#64748B') }}>{item.Country_Code} · {item.Regulatory_Authority}</div>
                 {parseFloat(item.Revenue_At_Risk_Millions) > 0 && (
                   <div style={{ fontSize: 10, color: '#EF4444', marginTop: 4, fontWeight: 600 }}>
                     {formatMillions(item.Revenue_At_Risk_Millions)} at risk
@@ -495,45 +462,31 @@ Format your response in plain text without markdown headers. Keep answers to 3-5
         </div>
 
         {/* RIGHT: Chat panel */}
-        <div style={{ display: 'flex', flexDirection: 'column', background: '#0D1117', minHeight: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', background: t('#0D1117', '#FFFFFF'), minHeight: 0, overflow: 'hidden' }}>
           <ChatPanel {...sharedChatProps} />
         </div>
       </div>
 
-      {/* ── FULLSCREEN OVERLAY ── */}
+      {/* FULLSCREEN OVERLAY */}
       {isFullscreen && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          zIndex: 9999,
-          background: 'rgba(0,0,0,0.85)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 24,
-        }}
+        <div
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            zIndex: 9999, background: 'rgba(0,0,0,0.85)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+          }}
           onClick={(e) => { if (e.target === e.currentTarget) setIsFullscreen(false); }}
         >
           <div style={{
-            width: '100%',
-            maxWidth: 900,
-            height: '90vh',
-            background: '#0D1117',
-            border: '1px solid #1F2937',
-            borderRadius: 10,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
+            width: '100%', maxWidth: 900, height: '90vh',
+            background: t('#0D1117', '#FFFFFF'),
+            border: `1px solid ${t('#1F2937', '#E2E8F0')}`,
+            borderRadius: 10, display: 'flex', flexDirection: 'column',
+            overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
           }}>
-            {/* Fullscreen title bar */}
             <div style={{
-              padding: '10px 16px',
-              background: '#00233C',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexShrink: 0,
+              padding: '10px 16px', background: '#00233C',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
             }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'white', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                 🤖 AI Intervention Analysis

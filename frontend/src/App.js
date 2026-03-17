@@ -21,6 +21,7 @@ function App() {
   const [error, setError]                 = useState(null);
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [selectedCard, setSelectedCard]             = useState(null);
+  const [theme, setTheme]                           = useState(() => localStorage.getItem('rdTheme') || 'dark');
   const interventionRef = useRef(null);
   const [filters, setFilters]             = useState({
     region: 'all',
@@ -31,6 +32,14 @@ function App() {
   });
 
   const fetchId = useRef(0);
+
+  // Persist theme to localStorage and apply to document
+  useEffect(() => {
+    localStorage.setItem('rdTheme', theme);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
   // Truly static data — load once, never changes with filters
   useEffect(() => {
@@ -98,8 +107,7 @@ function App() {
   };
 
   const handleAnalyzeCard = (card) => {
-    setSelectedCard({ ...card, _ts: Date.now() }); // _ts forces useEffect to fire even if same card re-selected
-    // Scroll down to the intervention panel
+    setSelectedCard({ ...card, _ts: Date.now() });
     setTimeout(() => {
       interventionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
@@ -107,7 +115,7 @@ function App() {
 
   if (loading && !kpis) {
     return (
-      <div className="loading-screen">
+      <div className="loading-screen" data-theme={theme}>
         <div className="loading-spinner"></div>
         <p>Loading Regulatory Intelligence v2...</p>
       </div>
@@ -116,7 +124,7 @@ function App() {
 
   if (error) {
     return (
-      <div className="error-screen">
+      <div className="error-screen" data-theme={theme}>
         <h2>Connection Error</h2>
         <p>{error}</p>
         <button onClick={() => setFilters(f => ({ ...f }))}>Retry</button>
@@ -128,8 +136,11 @@ function App() {
     i.Predicted_Outcome === 'CRL_Received' || i.Predicted_Outcome === 'Withdrawn'
   ).length;
 
+  const isDark = theme === 'dark';
+  const borderColor = isDark ? '#1F2937' : 'var(--border)';
+
   return (
-    <div className="app">
+    <div className="app" data-theme={theme}>
       <header className="header">
         <div className="header-left">
           <div className="logo-mark"></div>
@@ -144,6 +155,9 @@ function App() {
           <span className="live-badge"><span className="live-dot"></span>LIVE</span>
           <span>Last refresh: {new Date().toLocaleTimeString()}</span>
           <span>User: RA.Operations</span>
+          <button onClick={toggleTheme} className="theme-toggle" title="Toggle light/dark mode">
+            {isDark ? '☀️' : '🌙'}
+          </button>
           <button onClick={() => setFilters(f => ({ ...f }))} className="refresh-btn">🔄 Refresh</button>
         </div>
       </header>
@@ -151,12 +165,12 @@ function App() {
       <FilterBar filters={filters} onFilterChange={handleFilterChange} />
 
       {regions.length > 0 && (
-        <RegionalBreakdown regions={regions} onRegionClick={handleRegionClick} selectedRegion={filters.region} />
+        <RegionalBreakdown regions={regions} onRegionClick={handleRegionClick} selectedRegion={filters.region} theme={theme} />
       )}
 
-      {kpis && <KPIStrip kpis={kpis} days={filters.days} />}
+      {kpis && <KPIStrip kpis={kpis} days={filters.days} theme={theme} />}
 
-      {/* Protocol Cards — new in v2, replaces active submissions chart */}
+      {/* Protocol Cards */}
       <div className="panel" style={{ margin: '1px 0', padding: 24 }}>
         <div className="panel-header">
           <div className="panel-title">Protocol Portfolio — Predicted Outcomes</div>
@@ -165,12 +179,12 @@ function App() {
             <div className="panel-badge">{cards.length} PROTOCOLS</div>
           </div>
         </div>
-        <ProtocolCards cards={cards} onCardClick={handleCardClick} onAnalyzeClick={handleAnalyzeCard} />
+        <ProtocolCards cards={cards} onCardClick={handleCardClick} onAnalyzeClick={handleAnalyzeCard} theme={theme} />
       </div>
 
-      {/* Intervention Chat — new in v2, replaces static queue */}
+      {/* Intervention Chat */}
       <div ref={interventionRef} className="panel" style={{ margin: '1px 0', padding: 0, overflow: 'hidden' }}>
-        <div className="panel-header" style={{ padding: '16px 24px', borderBottom: '1px solid #1F2937' }}>
+        <div className="panel-header" style={{ padding: '16px 24px', borderBottom: `1px solid ${borderColor}` }}>
           <div className="panel-title">Intervention Intelligence</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {urgentCount > 0 && (
@@ -181,12 +195,12 @@ function App() {
             <div className="panel-badge">AI-ASSISTED ANALYSIS</div>
           </div>
         </div>
-        <InterventionChat interventions={interventions} selectedCard={selectedCard} />
+        <InterventionChat interventions={interventions} selectedCard={selectedCard} theme={theme} />
       </div>
 
       {roiData && <ROIPanel roiData={roiData} />}
 
-      {/* Model transparency card — new in v2 */}
+      {/* Model transparency card */}
       {modelMeta && (
         <div className="panel" style={{ margin: '1px 0', padding: 24 }}>
           <div className="panel-header">
@@ -195,7 +209,7 @@ function App() {
               {modelMeta.currentModel?.Model_Version} · {Math.round((parseFloat(modelMeta.currentModel?.Test_Accuracy || 0)) * 100)}% ACCURACY
             </div>
           </div>
-          <ModelCard modelMeta={modelMeta} />
+          <ModelCard modelMeta={modelMeta} theme={theme} />
         </div>
       )}
 
