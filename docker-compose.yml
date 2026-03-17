@@ -1,0 +1,27 @@
+services:
+
+  backend:
+    build:
+      context: ./backend
+    container_name: reg-dashboard-backend
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
+    networks:
+      - dashboard-net
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: reg-dashboard-frontend
+    ports:
+      - "8083:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - dashboard-net
+
+networks:
+  dashboard-net:
+    driver: bridge
